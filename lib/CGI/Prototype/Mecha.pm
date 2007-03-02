@@ -1,7 +1,7 @@
 package CGI::Prototype::Mecha;
 use base qw(WWW::Mechanize);
 
-our $VERSION = "0.20";
+our $VERSION = "0.21";
 
 use strict;
 
@@ -78,9 +78,11 @@ sub simple_request {
   $OUTPUT = "";
 
   {
-    require IO::String;
-    my $content_handle = IO::String->new($request->content);
-    local *STDIN = $content_handle; # provide alternate STDIN for content
+    require File::Temp;
+    my $fh = File::Temp::tempfile();
+    print {$fh} $request->content;
+    seek $fh, 0, 0;
+    local *STDIN = $fh;		# provide alternate STDIN for content
 
     CGI::_reset_globals();	# because it needs it
 
