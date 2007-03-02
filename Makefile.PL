@@ -7,6 +7,7 @@ WriteMakefile(
     PREREQ_PM         => {
 			  'CGI::Prototype' => 0.9051,
 			  'WWW::Mechanize' => 0,
+			  'IO::String' => 0,
 			  'LWP' => 5.803, # apparently some older versions break Mecha
 			 },
     ($] >= 5.005 ?

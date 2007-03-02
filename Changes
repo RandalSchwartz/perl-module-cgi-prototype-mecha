@@ -1,4 +1,8 @@
-Revision history for Perl extension CGI::Prototype.
+Revision history for Perl extension CGI::Prototype::Hidden
+
+0.20	 Wed May 11 19:20:36 EDT 2005
+	 Teach CGI::Prototype::Mecha how to handle every possible request
+	 including file-upload fields!
 
 0.10	 Wed Apr  6 10:47:07 PDT 2005
 	 Split out from CGI::Prototype

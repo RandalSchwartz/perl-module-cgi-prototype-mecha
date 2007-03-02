@@ -1,7 +1,7 @@
 package CGI::Prototype::Mecha;
 use base qw(WWW::Mechanize);
 
-our $VERSION = "0.10";
+our $VERSION = "0.20";
 
 use strict;
 
@@ -46,41 +46,46 @@ sub simple_request {
     ## warn "returning 404 for $uri";
     return HTTP::Response->new(404, 'not found', [], "$uri");
   }
+  ## warn "setting up request:\n", $request->as_string;
 
-  my $params;
-  if ($request->method eq 'POST') {
-    if (my @parts = $request->parts) {
-      require Data::Dumper;
-      my %p;
-      ## warn "parts are ", Data::Dumper::Dumper(\@parts);
-      for my $part (@parts) {
-	my $value = $part->content;
-	my $key = $part->header('content-disposition');
-	$key =~ s/^form-data; name="(.*)"/$1/s or die "bad form-data: $key";
-	$key =~ s/\\"/"/g;
-	push @{$p{$key}}, $value;
-      }
-      ## warn "processed parts are ", Data::Dumper::Dumper(\%p);
-      $params = \%p;
-    } else {
-      $params = $request->content;
-    }
-  } else {
-    $params = $uri->query;
-  }
-  ## print STDERR map "# params: $_\n", split /\n/, $params;
-  local $ENV{SERVER_NAME} = "mecha";
+  ## now set up the fake "CGI" environment so CGI.pm does the right thing
+  local %ENV = %ENV;		# will clear out when we exit this scope
 
-  ## need to fake up the CGI object now:
-  $mirror->addSlot
-    (initialize_CGI => sub {
-       my $self = shift;
-       $self->reflect->addSlot(CGI => scalar CGI->new($params));
-     });
+  $ENV{REQUEST_METHOD} = $request->method;
+  $ENV{QUERY_STRING} = $uri->query;
+  $ENV{SCRIPT_NAME} = "";
+  $ENV{PATH_INFO} = "/" . $uri->rel("http://mecha/")->path; # not quite right
+  $ENV{SERVER_NAME} = $uri->host;
+  $ENV{SERVER_ADDR} = $uri->host;
+  $ENV{SERVER_PORT} = $uri->port;
+
+  $request->headers->scan
+    (sub {
+       my ($header, $value) = @_;
+       if (lc $header eq "content-length") {
+	 $ENV{CONTENT_LENGTH} = $value;
+       } elsif (lc $header eq "content-type") {
+	 $ENV{CONTENT_TYPE} = $value;
+       } else {
+	 (my $env = uc "HTTP_$header") =~ tr/-/_/;
+	 ## warn "setting \$ENV{$env} to $value\n";
+	 $ENV{$env} = $value;
+       }
+     }
+    );
+
 
   $OUTPUT = "";
 
-  eval { $mirror->object->activate };
+  {
+    require IO::String;
+    my $content_handle = IO::String->new($request->content);
+    local *STDIN = $content_handle; # provide alternate STDIN for content
+
+    CGI::_reset_globals();	# because it needs it
+
+    eval { $mirror->object->activate };
+  }
   if ($@) {
     ## warn "returning 500 for $@";
     return HTTP::Response->new(500, 'internal error', [], "$@");
@@ -170,6 +175,9 @@ Note that visiting any URL that does not start with C<http://mecha/>
 is fatal.  A future version may fall back to the original
 C<WWW::Mechanize>, letting you test your app's outbound links
 properly.
+
+As of version 0.20, even "input type=file" fields will be properly
+handled.
 
 =item diag_response
 
